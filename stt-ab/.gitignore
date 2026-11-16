@@ -1,0 +1,6 @@
+.env
+__pycache__/
+fixtures/tts/audio/
+fixtures/human/*.wav
+fixtures/human/*.m4a
+results/

@@ -1,0 +1,33 @@
+# Render blueprint — one web service running stage 1.
+# In Render: New → Blueprint → pick Sad7-ai/kitchen. It reads this file and asks for the two secrets.
+#
+# `plan: free` sleeps after 15 minutes idle and takes ~1 minute to wake. Fine for the team;
+# switch to `starter` (about $7/month) for a demo day so nobody waits on a cold start.
+# `frankfurt` is Render's closest region to Saudi — roughly 0.2 s each way, small next to the
+# ~1.4 s the stability tracker already costs.
+services:
+  - name: sadih
+    type: web
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: stage1
+    buildCommand: pip install -r requirements-server.txt
+    startCommand: python -m uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.5"
+
+      # asked for when you create the Blueprint; never stored in git
+      - key: MUNSIT_API_KEY
+        sync: false
+      - key: SADIH_ACCESS_CODE          # anyone with the URL can otherwise spend our credits
+        sync: false
+
+      - key: SADIH_MAX_SESSIONS         # Munsit allows 5 per key; leave headroom
+        value: "3"
+      - key: SADIH_MAX_SESSION_S        # a forgotten tab must not bill us for an hour
+        value: "900"
+      - key: SADIH_LOG_TRANSCRIPTS      # never write what people said onto a host
+        value: "0"

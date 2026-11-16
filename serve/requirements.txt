@@ -1,0 +1,5 @@
+# The model service's own packages. torch, MaDiS, SOKE and the rest come from the team's pinned env
+# (avatar/exp4_generator/runpod/env.lock) on the GPU box; the mock needs only these and numpy.
+fastapi>=0.110
+uvicorn>=0.30
+numpy>=1.26

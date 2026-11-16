@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1C1734">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="صادِح">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-180.png">
+<link rel="icon" href="/static/icons/icon-192.png">
+<title>صادِح</title>
+<script type="importmap">{"imports": {"three": "/static/vendor/three/three.module.min.js", "three/addons/": "/static/vendor/three/addons/"}}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+  :root {
+    --coral: #FF6F5E; --violet: #7A5AF8; --ink: #1E1B34;
+    --ar: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    --sans: "Inter", "Segoe UI", system-ui, sans-serif;
+    /* Thmanyah (ثمانية): Serif Display for names and titles, Sans for the rest. Its licence bars
+       putting the files in a repo or serving them as a webfont, so these are referenced BY NAME —
+       installed on the device you present from they appear, elsewhere they fall back cleanly.
+       One download per device: font.thmanyah.com */
+    --display: "Thmanyah Serif Display", "Thmanyah Serif Text", "IBM Plex Sans Arabic", Georgia, serif;
+    --app-ar: "Thmanyah Sans", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    --W: 393px; --H: 852px;
+    --top: 62px;   /* clearance for the status bar — becomes the real notch in shell mode */
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; overflow: hidden;
+               overscroll-behavior: none;            /* no pull-to-refresh mid-swipe */
+               -webkit-text-size-adjust: 100%; }
+  body {
+    background: #0B0A14 radial-gradient(1200px 800px at 50% -10%, #241F45 0%, transparent 62%);
+    display: grid; place-items: center; font-family: var(--sans); color: #fff;
+    user-select: none;
+  }
+
+  /* ───────── device ───────── */
+  .stage { display: grid; place-items: center; gap: 14px; }
+  .device {
+    width: var(--W); height: var(--H); position: relative; flex: none;
+    border-radius: 56px; padding: 11px;
+    background: linear-gradient(150deg, #6E6E76 0%, #2A2A31 18%, #45454E 48%, #22222A 78%, #5A5A63 100%);
+    box-shadow: 0 2px 0 rgba(255,255,255,.18) inset, 0 40px 90px rgba(0,0,0,.6), 0 0 0 1px #15151B;
+    transform-origin: center center;
+  }
+  .screen {
+    position: relative; width: 100%; height: 100%; border-radius: 46px; overflow: hidden;
+    background: #000; direction: rtl;
+  }
+  .island {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: 122px; height: 35px; border-radius: 20px; background: #000; z-index: 90; pointer-events: none;
+  }
+  .island::after { content: ""; position: absolute; right: 13px; top: 11px; width: 12px; height: 12px;
+    border-radius: 50%; background: #0E1520; box-shadow: 0 0 0 1px #181820 inset; }
+  .indicator {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 140px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.55); z-index: 88; pointer-events: none;
+  }
+  .grab { position: absolute; bottom: 0; left: 0; right: 0; height: 26px; z-index: 87; touch-action: none; }
+  /* Android owns the very bottom of a real screen, so our way home sits above it and is TAPPABLE,
+     not just swipeable — a gesture that silently does nothing is worse than no gesture. */
+  body.shell .indicator { pointer-events: auto; width: 150px; height: 26px; background: none;
+                          bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+                          display: grid; place-items: center; cursor: pointer; }
+  body.shell .indicator::after { content: ""; width: 140px; height: 5px; border-radius: 3px;
+                                 background: rgba(255,255,255,.62); transition: background .15s, transform .15s; }
+  body.shell .indicator:active::after { background: #fff; transform: scaleX(.9); }
+  body.shell .grab { bottom: calc(env(safe-area-inset-bottom, 0px) + 6px); height: 34px; }
+
+  /* ───────── layers ───────── */
+  .layer { position: absolute; inset: 0; z-index: 10; }
+  /* Only the layers that run their own gestures opt out of native panning. Putting this on
+     .screen instead would disable scrolling inside the app, because the browser intersects
+     touch-action all the way down the tree. */
+  #lock { touch-action: none; }
+  #home { touch-action: pan-y; }
+  .wall {
+    background:
+      radial-gradient(70% 50% at 78% 12%, rgba(255,111,94,.50) 0%, transparent 60%),
+      radial-gradient(75% 55% at 18% 78%, rgba(122,90,248,.55) 0%, transparent 62%),
+      radial-gradient(60% 40% at 50% 45%, rgba(94,200,216,.20) 0%, transparent 70%),
+      linear-gradient(170deg, #241C48 0%, #171232 45%, #0F0C22 100%);
+  }
+  .statusbar {
+    position: absolute; top: 0; left: 0; right: 0; height: 54px; z-index: 80;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 30px 0; font: 600 15px/1 var(--sans); letter-spacing: .2px; pointer-events: none;
+  }
+  .statusbar .right { display: flex; align-items: center; gap: 5px; }
+  .statusbar svg { display: block; }
+
+  /* ───────── lock ───────── */
+  #lock { z-index: 40; transition: transform .45s cubic-bezier(.32,.72,0,1), opacity .35s; }
+  #lock .clock { position: absolute; top: calc(var(--top) + 46px); left: 0; right: 0; text-align: center; }
+  #lock .date { font: 500 19px var(--ar); opacity: .92; margin-bottom: 2px; }
+  #lock .time { font: 300 82px/1 var(--sans); letter-spacing: -2px; }
+  #lock .swipe {
+    position: absolute; bottom: 44px; left: 0; right: 0; text-align: center;
+    font: 400 14px var(--ar); color: rgba(255,255,255,.75); animation: bob 2.4s ease-in-out infinite;
+  }
+  @keyframes bob { 0%,100% { transform: translateY(0); opacity: .75 } 50% { transform: translateY(-7px); opacity: 1 } }
+  #lock .lockicon { position: absolute; top: var(--top); left: 50%; transform: translateX(-50%); opacity: .85; }
+
+  /* ───────── home ───────── */
+  #home { z-index: 20; display: flex; flex-direction: column; padding-top: var(--top); }
+  .pages { flex: 1; display: flex; transition: transform .38s cubic-bezier(.32,.72,0,1); will-change: transform; }
+  .pages.dragging { transition: none; }
+  .page { min-width: 100%; padding: 8px 22px 0; overflow-y: auto; overscroll-behavior: contain; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 20px; column-gap: 8px; }
+  .app { display: grid; justify-items: center; gap: 6px; cursor: pointer; }
+  .app .ic {
+    width: 61px; height: 61px; border-radius: 14.5px; display: grid; place-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.35), 0 0 0 .5px rgba(255,255,255,.08) inset;
+    transition: transform .12s;
+  }
+  .app:active .ic { transform: scale(.9); }
+  .app .nm { font: 400 11.5px var(--ar); color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.5); white-space: nowrap; }
+  .dots { display: flex; justify-content: center; gap: 7px; padding: 10px 0 8px; }
+  .dots i { position: relative; width: 7px; height: 7px; border-radius: 50%; cursor: pointer;
+            background: rgba(255,255,255,.35); transition: background .2s; }
+  .dots i::after { content: ""; position: absolute; inset: -13px -9px; }   /* finger-sized hit area */
+  .dots i.on { background: #fff; }
+  /* container only — #gd inside does the four columns. Nesting a second grid here squeezed
+     every dock icon into the first quarter, which only showed up on a wide screen. */
+  .dock {
+    margin: 0 12px 26px; padding: 11px 12px; border-radius: 34px;
+    background: rgba(255,255,255,.14); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+  }
+  .dock .app .nm { display: none; }
+
+  /* ───────── a mock app ───────── */
+  #appview { z-index: 50; background: #0E0C1A; display: flex; flex-direction: column;
+             transform: scale(.86); opacity: 0; pointer-events: none;
+             transition: transform .34s cubic-bezier(.32,.72,0,1), opacity .24s; }
+  #appview.on { transform: none; opacity: 1; pointer-events: auto; }
+  #appview .hdr { padding: var(--top) 22px 14px; display: flex; align-items: center; gap: 12px;
+                  background: #16132A; border-bottom: .5px solid rgba(255,255,255,.08); }
+  #appview .hdr .ic { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; }
+  #appview .hdr h2 { margin: 0; font: 600 21px var(--ar); }
+  #appview .body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+                   overscroll-behavior: contain; touch-action: pan-y; padding: 18px 22px; }
+  .sk { height: 62px; border-radius: 14px; background: rgba(255,255,255,.055); margin-bottom: 11px;
+        display: flex; align-items: center; gap: 13px; padding: 0 14px; }
+  .sk .av { width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,.09); flex: none; }
+  .sk .ln { flex: 1; display: grid; gap: 7px; }
+  .sk .ln b { height: 9px; border-radius: 5px; background: rgba(255,255,255,.13); }
+  .sk .ln i { height: 7px; border-radius: 4px; background: rgba(255,255,255,.075); }
+  #appview .note { text-align: center; color: rgba(255,255,255,.34); font: 400 12.5px var(--ar); padding-top: 14px; }
+
+  /* ───────── صادِح, full screen ───────── */
+  #sadih { z-index: 60; background: #000;
+           display: flex; flex-direction: column;
+           transform: scale(.86); opacity: 0; pointer-events: none;
+           transition: transform .34s cubic-bezier(.32,.72,0,1), opacity .24s; }
+  #sadih.on { transform: none; opacity: 1; pointer-events: auto; }
+  .sd-hdr { padding: var(--top) 24px 0; display: flex; align-items: center; justify-content: space-between; }
+  .sd-mark { font: 500 30px var(--display); color: #fff; letter-spacing: .5px; }
+  .sd-pill { font: 600 11px var(--app-ar); padding: 7px 13px; border-radius: 99px;
+             background: rgba(255,255,255,.12); color: rgba(255,255,255,.72); transition: background .25s, color .25s; }
+  .sd-pill[data-s="live"] { background: #fff; color: #000; }
+  .sd-pill[data-s="connecting"], .sd-pill[data-s="finishing"] { background: rgba(255,255,255,.34); color: #000; }
+  .sd-pill[data-s="error"] { background: #2A2A2A; color: #EDEDED; }
+  .sd-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+             overscroll-behavior: contain; touch-action: pan-y;
+             -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px);
+             mask-image: linear-gradient(to bottom, transparent 0, #000 30px);
+             padding: 18px 24px 10px; display: flex; flex-direction: column; }
+  .sd-text { margin-top: auto; display: flex; flex-direction: column; }
+  /* the avatar: model motion on the SMPL-X body (web/avatar.js), above the captions */
+  .sd-avatar { position: relative; flex: 0 0 46%; min-height: 0; margin-top: 6px; }
+  .av-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+               -webkit-mask-image: linear-gradient(to bottom, #000 88%, transparent);
+               mask-image: linear-gradient(to bottom, #000 88%, transparent); }
+  .sd-av-note { position: absolute; right: 24px; bottom: 4px; font: 400 12px var(--app-ar); color: rgba(255,255,255,.5); }
+  #sadih.has-av .sd-text p { font-size: 22px; line-height: 1.75; }
+  #sadih.has-av .sd-hint { padding-bottom: 6%; }
+  .pip-av { position: relative; flex: 1 1 58%; min-height: 0; }
+  .sd-text p { margin: 0; font: 500 27px/1.85 var(--app-ar); text-align: right; unicode-bidi: plaintext; }
+  .sd-hint { color: rgba(255,255,255,.42); font: 400 15px/1.8 var(--app-ar); text-align: center; padding-bottom: 30%; }
+  .u3 { color: rgba(255,255,255,.26); } .u2 { color: rgba(255,255,255,.46); } .u1 { color: rgba(255,255,255,.72); }
+  .uh { color: rgba(255,255,255,.55); }   /* history: dimmer than live, still readable */
+  .u0 { color: #fff; } .bf { color: #F2F2F2; } .pd { color: rgba(255,255,255,.32); }
+  .sd-foot { padding: 20px 0 42px; display: grid; justify-items: center; gap: 11px; }
+  .sd-sub { font: 400 12.5px var(--app-ar); color: rgba(255,255,255,.45); }
+  .mic {
+    width: 78px; height: 78px; border-radius: 50%; border: 0; cursor: pointer; color: #000;
+    background: #fff; display: grid; place-items: center; transition: transform .14s, background .2s;
+  }
+  .mic:active { transform: scale(.94); }
+  .mic:disabled { background: rgba(255,255,255,.12); }
+  .mic.on { animation: ring 1.9s infinite; }
+  @keyframes ring { from { box-shadow: 0 0 0 0 rgba(255,255,255,.45) } to { box-shadow: 0 0 0 26px rgba(255,255,255,0) } }
+  .sd-err { margin: 0 24px; background: #1C1C1C; border: .5px solid #3A3A3A; color: #E6E6E6;
+            border-radius: 12px; padding: 11px 14px; font: 400 13px/1.6 var(--app-ar); }
+
+  /* ───────── floating button ───────── */
+  #bubble {
+    position: absolute; z-index: 82; width: 56px; height: 56px; border-radius: 50%; cursor: grab;
+    background: #000; color: #fff;
+    box-shadow: 0 8px 22px rgba(0,0,0,.55), 0 0 0 1.5px rgba(255,255,255,.34) inset;
+    display: grid; place-items: center; touch-action: none;
+    font: 500 19px/1 var(--display); letter-spacing: .3px;
+    transition: transform .2s cubic-bezier(.32,1.5,.6,1), opacity .2s, left .22s cubic-bezier(.32,.72,0,1);
+  }
+  #bubble.hide { opacity: 0; transform: scale(.4); pointer-events: none; }
+  #bubble.drag { cursor: grabbing; transform: scale(1.09); transition: none; }
+  #bubble.listening::before {
+    content: ""; position: absolute; inset: -5px; border-radius: 50%;
+    border: 2px solid #fff; animation: pulse 1.7s ease-out infinite;
+  }
+  @keyframes pulse { from { transform: scale(1); opacity: .9 } to { transform: scale(1.45); opacity: 0 } }
+
+  /* ───────── floating window ───────── */
+  #pip {
+    position: absolute; z-index: 84; border-radius: 22px; overflow: hidden; touch-action: none;
+    background: rgba(0,0,0,.93); backdrop-filter: blur(26px); -webkit-backdrop-filter: blur(26px);
+    box-shadow: 0 18px 46px rgba(0,0,0,.7), 0 0 0 .5px rgba(255,255,255,.22) inset;
+    display: flex; flex-direction: column;
+    transform-origin: center; transition: opacity .2s, transform .24s cubic-bezier(.32,.72,0,1);
+  }
+  #pip.hide { opacity: 0; transform: scale(.82); pointer-events: none; }
+  #pip.moving { transition: none; }
+  .pip-bar { height: 38px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 12px;
+             cursor: grab; background: rgba(255,255,255,.05); }
+  .pip-bar.drag { cursor: grabbing; }
+  .pip-bar .mk { font: 500 17px var(--display); color: #fff; letter-spacing: .3px; }
+  .pip-bar .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.22); }
+  .pip-bar .dot.on { background: #fff; animation: blink 1.5s infinite; }
+  @keyframes blink { 50% { opacity: .3 } }
+  .pip-bar .sp { flex: 1; }
+  .pip-bar button { width: 26px; height: 26px; border: 0; border-radius: 8px; cursor: pointer;
+                    background: rgba(255,255,255,.1); color: #fff; display: grid; place-items: center; }
+  .pip-bar button:active { background: rgba(255,255,255,.2); }
+  .pip-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+              overscroll-behavior: contain; touch-action: pan-y;
+              padding: 10px 13px; display: flex; flex-direction: column; justify-content: flex-end; }
+  .pip-body p { margin: 0; text-align: right; unicode-bidi: plaintext;
+                font: 500 clamp(13px, 4.6cqw, 21px)/1.75 var(--app-ar); }
+  .pip-body .sd-hint { font-size: 12.5px; padding-bottom: 8px; }
+  .pip-foot { flex: none; padding: 8px; display: grid; justify-items: center; }
+  .pip-mic { width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer; color: #000;
+             background: #fff; display: grid; place-items: center; }
+  .pip-mic:active { transform: scale(.93); }
+  .pip-mic.on { animation: ring 1.9s infinite; }
+  .pip-rs { position: absolute; width: 26px; height: 26px; left: 0; bottom: 0; cursor: nesw-resize; z-index: 3; }
+  .pip-rs::after { content: ""; position: absolute; left: 7px; bottom: 7px; width: 9px; height: 9px;
+                   border-left: 2px solid rgba(255,255,255,.5); border-bottom: 2px solid rgba(255,255,255,.5); border-radius: 0 0 0 3px; }
+
+  /* ───────── caption ───────── */
+  /* ───────── shell: the whole simulation, using the REAL phone's screen ─────────
+     The demo IS the home screen, the icons and the floating button, so an installed app keeps
+     all of it — only the drawn bezel, notch and home bar go, because the real phone has its own. */
+  body.shell { background: #0C0A18; display: block; }
+  body.shell .stage { display: block; gap: 0; width: 100% !important; height: 100% !important; }
+  body.shell .device {
+    width: 100vw; height: 100dvh; padding: 0; border-radius: 0;
+    background: none; box-shadow: none; transform: none !important;
+  }
+  body.shell .screen { border-radius: 0; }
+  body.shell .island, body.shell .statusbar, body.shell .cap { display: none !important; }
+  body.shell { --top: calc(env(safe-area-inset-top, 0px) + 18px); }
+  body.shell .dock { margin-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); }
+  body.shell .sd-foot { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 26px); }
+  body.shell .grab { height: calc(env(safe-area-inset-bottom, 0px) + 22px); }
+  body.shell .mockbadge { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); left: 8px; opacity: .85; }
+
+  /* ───────── bare: installed on a real phone, so drop the fake one ───────── */
+  body.bare { background: #0C0A18; display: block; }
+  body.bare .stage { display: block; gap: 0; width: 100% !important; height: 100% !important; }
+  body.bare .device {
+    width: 100vw; height: 100dvh; padding: 0; border-radius: 0;
+    background: none; box-shadow: none; transform: none !important;
+  }
+  body.bare .screen { border-radius: 0; }
+  body.bare .island, body.bare .indicator, body.bare .grab,
+  body.bare .statusbar, body.bare .cap, body.bare #lock, body.bare #home,
+  body.bare #appview, body.bare #bubble, body.bare #pip { display: none !important; }
+  body.bare #sadih { transform: none; opacity: 1; pointer-events: auto; }
+  body.bare { --top: calc(env(safe-area-inset-top, 0px) + 16px); }
+  body.bare .sd-foot { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 26px); }
+  body.bare .sd-body { padding-left: max(24px, env(safe-area-inset-left));
+                       padding-right: max(24px, env(safe-area-inset-right)); }
+  /* the mock badge sits top-left on the desktop demo, where the status pill lives on a phone */
+  body.bare .mockbadge { top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); left: 8px; opacity: .85; }
+
+  /* ───────── access code ───────── */
+  #gate { position: absolute; inset: 0; z-index: 95; display: none; flex-direction: column;
+          align-items: center; justify-content: center; gap: 16px; padding: 0 34px;
+          background: rgba(0,0,0,.95); backdrop-filter: blur(16px); }
+  #gate.on { display: flex; }
+  #gate .m { font: 500 34px var(--display); color: #fff; letter-spacing: .5px; }
+  #gate p { margin: 0; font: 400 14.5px/1.7 var(--app-ar); color: rgba(255,255,255,.62); text-align: center; }
+  #gate input { width: 100%; height: 50px; border-radius: 14px; border: 1px solid rgba(255,255,255,.16);
+                background: rgba(255,255,255,.07); color: #fff; text-align: center;
+                font: 600 20px var(--sans); letter-spacing: 3px; outline: none; }
+  #gate input:focus { border-color: var(--violet); }
+  #gate button { width: 100%; height: 48px; border: 0; border-radius: 14px; cursor: pointer;
+                 background: #fff; color: #000; font: 600 16px var(--app-ar); }
+  #gate .bad { color: #E0E0E0; font: 400 13px var(--app-ar); min-height: 18px; }
+
+  .cap { font: 400 12.5px var(--sans); color: rgba(255,255,255,.34); text-align: center; letter-spacing: .2px; }
+  .cap b { color: rgba(255,255,255,.6); font-weight: 600; }
+  .mockbadge { position: fixed; top: 14px; left: 14px; z-index: 200; font: 700 10px var(--sans); letter-spacing: .12em;
+               background: #F5B84C; color: #2B1E00; padding: 5px 9px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="device" id="device">
+    <div class="screen" id="screen">
+
+      <!-- home -->
+      <div class="layer wall" id="home">
+        <div class="pages" id="pages">
+          <div class="page"><div class="grid" id="g1"></div></div>
+          <div class="page"><div class="grid" id="g2"></div></div>
+        </div>
+        <div class="dots" id="dots"><i class="on"></i><i></i></div>
+        <div class="dock"><div class="grid" id="gd" style="grid-template-columns:repeat(4,1fr);width:100%"></div></div>
+      </div>
+
+      <!-- a mock app -->
+      <div class="layer" id="appview">
+        <div class="hdr"><div class="ic" id="av-ic"></div><h2 id="av-name"></h2></div>
+        <div class="body" id="av-body"></div>
+      </div>
+
+      <!-- صادِح, full screen -->
+      <div class="layer" id="sadih">
+        <div class="sd-hdr"><div class="sd-mark">صادِح</div><div class="sd-pill" id="sd-pill" data-s="idle">جاهز</div></div>
+        <div class="sd-err" id="sd-err" hidden></div>
+        <div class="sd-avatar" id="sd-avatar" hidden><span class="sd-av-note" id="sd-av-note"></span></div>
+        <div class="sd-body" id="sd-body"><div class="sd-text" id="sd-text"></div></div>
+        <div class="sd-foot">
+          <button class="mic" id="sd-mic" aria-label="ابدأ الاستماع">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
+          <div class="sd-sub" id="sd-sub">اضغط وتكلّم</div>
+        </div>
+      </div>
+
+      <!-- floating window -->
+      <div id="pip" class="hide">
+        <div class="pip-bar" id="pip-bar">
+          <span class="mk">صادِح</span><span class="dot" id="pip-dot"></span><span class="sp"></span>
+          <button id="pip-max" aria-label="تكبير"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 9V4h5M20 15v5h-5"/></svg></button>
+          <button id="pip-close" aria-label="إغلاق"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+        </div>
+        <div class="pip-av" id="pip-av" hidden></div>
+        <div class="pip-body" id="pip-body" style="container-type:inline-size"></div>
+        <div class="pip-foot">
+          <button class="pip-mic" id="pip-mic" aria-label="ابدأ الاستماع">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
+        </div>
+        <div class="pip-rs" id="pip-rs"></div>
+      </div>
+
+      <!-- floating button -->
+      <div id="bubble" class="hide" role="button" aria-label="فتح صادِح">صادِح</div>
+
+      <!-- access code -->
+      <div id="gate">
+        <div class="m">صادِح</div>
+        <p>هذا عرض خاص. أدخل رمز الدخول للمتابعة.</p>
+        <input id="gate-in" type="password" inputmode="text" autocomplete="off" aria-label="رمز الدخول">
+        <div class="bad" id="gate-bad"></div>
+        <button id="gate-go">دخول</button>
+      </div>
+
+      <!-- lock -->
+      <div class="layer wall" id="lock">
+        <div class="lockicon"><svg width="17" height="22" viewBox="0 0 24 30" fill="#fff"><path d="M12 0a7 7 0 0 0-7 7v4H4a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V13a2 2 0 0 0-2-2h-1V7a7 7 0 0 0-7-7zm0 3a4 4 0 0 1 4 4v4H8V7a4 4 0 0 1 4-4z"/></svg></div>
+        <div class="clock"><div class="date" id="lk-date"></div><div class="time" id="lk-time">9:41</div></div>
+        <div class="swipe">اسحب لأعلى للفتح ↑</div>
+      </div>
+
+      <div class="statusbar">
+        <span id="sb-time">9:41</span>
+        <span class="right">
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="#fff"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12" fill="#fff"><path d="M8 11.2 6.1 9.1a2.9 2.9 0 0 1 3.8 0L8 11.2zM8 7.3c-1.3 0-2.5.5-3.4 1.3L3.1 7.1A7 7 0 0 1 8 5.2c1.9 0 3.6.7 4.9 1.9l-1.5 1.5A4.9 4.9 0 0 0 8 7.3zM8 3.3C5.6 3.3 3.4 4.2 1.8 5.8L.3 4.3A10.9 10.9 0 0 1 8 1.2c3 0 5.7 1.2 7.7 3.1l-1.5 1.5A8.9 8.9 0 0 0 8 3.3z"/></svg>
+          <svg width="26" height="13" viewBox="0 0 26 13" fill="none" style="transform:scaleX(-1)"><rect x=".5" y=".5" width="21" height="12" rx="3.5" stroke="#fff" opacity=".45"/><rect x="2" y="2" width="15" height="9" rx="2" fill="#fff"/><path d="M23 4.5v4a2.5 2.5 0 0 0 0-4z" fill="#fff" opacity=".45"/></svg>
+        </span>
+      </div>
+
+      <div class="grab" id="grab"></div>
+      <div class="indicator"></div>
+      <div class="island"></div>
+    </div>
+  </div>
+  <p class="cap">صادِح · اسحب لأعلى، ثم افتح التطبيق &nbsp;—&nbsp; <b>Esc</b> resets the demo</p>
+</div>
+<div class="mockbadge" id="mockbadge" hidden>MOCK · no recogniser</div>
+
+<script src="/static/client.js"></script>
+<script>
+/* Three ways to show this:
+     frame  the drawn iPhone on a desk        — presenting from a laptop
+     shell  the same simulation, full screen  — a real phone, and the installed app
+     bare   صادِح alone, no simulation        — what the finished product would look like
+   Canonical form is ?mode=frame|shell|bare.
+
+   The installed APK has its launch URL baked in at BUILD time — it asks for `?bare=1`, captured
+   before shell mode existed, and no reinstall can change that. So the legacy `?bare=1` now means
+   shell. True bare is ?mode=bare, which nothing has baked anywhere. */
+const Q = new URLSearchParams(location.search);
+const ONPHONE = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true
+  || matchMedia("(max-width: 540px) and (pointer: coarse)").matches;
+const ASKED = ["frame", "shell", "bare"].includes(Q.get("mode")) ? Q.get("mode")
+  : Q.get("frame") === "1" ? "frame"
+  : Q.get("shell") === "1" ? "shell"
+  : Q.get("bare") === "1" ? "shell"        // legacy: the URL inside the shipped APK
+  : null;
+const MODE = ASKED || (ONPHONE ? "shell" : "frame");
+const BARE = MODE === "bare";
+if (MODE !== "frame") document.body.classList.add(MODE);
+
+var boundsReady = false;   // var, not let: measure() is reached from fit() before this line runs
+const $ = id => document.getElementById(id);
+const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
+
+/* ───────── icons ───────── */
+const G = {
+  msg:  ['linear-gradient(180deg,#5BF675,#20C934)', '<svg width="36" height="36" viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.9 3 2.8 6.4 2.8 10.6c0 2.4 1.4 4.6 3.5 6-.2 1.3-.8 2.5-1.7 3.4 1.6-.2 3.1-.9 4.3-1.9 1 .3 2 .4 3.1.4 5.1 0 9.2-3.4 9.2-7.6S17.1 3 12 3z"/></svg>'],
+  phone:['linear-gradient(180deg,#5BF675,#20C934)', '<svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M7.5 3.5c.6 0 1.1.4 1.3 1l.9 3c.2.6 0 1.2-.5 1.6l-1.4 1a12 12 0 0 0 5.6 5.6l1-1.4c.4-.5 1-.7 1.6-.5l3 .9c.6.2 1 .7 1 1.3v2.6c0 .9-.8 1.6-1.7 1.5C10.9 19.4 4.6 13.1 3.9 5.2c-.1-.9.6-1.7 1.5-1.7h2.1z"/></svg>'],
+  safari:['linear-gradient(180deg,#19D3FD,#0F7EF0)', '<svg width="38" height="38" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.4" fill="#fff"/><circle cx="12" cy="12" r="8.3" fill="none" stroke="#DEE6EE" stroke-width=".8"/><path d="M16.4 7.6 10.9 10.9 7.6 16.4 13.1 13.1z" fill="#FF3B30"/><path d="M10.9 10.9 7.6 16.4 13.1 13.1z" fill="#C8C8CD"/></svg>'],
+  cam:  ['linear-gradient(180deg,#6E6E73,#3A3A3C)', '<svg width="34" height="34" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="6" width="19" height="13" rx="3.2" fill="#1C1C1E"/><circle cx="12" cy="12.5" r="4.2" fill="#3A3A3C" stroke="#8E8E93" stroke-width="1.1"/><circle cx="12" cy="12.5" r="2.1" fill="#0B0B0D"/><rect x="16.8" y="8" width="3" height="2" rx="1" fill="#8E8E93"/></svg>'],
+  photos:['#fff', '<svg width="36" height="36" viewBox="0 0 24 24"><g opacity=".92"><ellipse cx="12" cy="5.6" rx="2.5" ry="4.4" fill="#FDC72F"/><ellipse cx="12" cy="18.4" rx="2.5" ry="4.4" fill="#4FC3F7"/><ellipse cx="5.6" cy="12" rx="4.4" ry="2.5" fill="#FF6E6E"/><ellipse cx="18.4" cy="12" rx="4.4" ry="2.5" fill="#8BE36B"/><ellipse cx="7.5" cy="7.5" rx="2.5" ry="4.4" fill="#FF9F43" transform="rotate(-45 7.5 7.5)"/><ellipse cx="16.5" cy="16.5" rx="2.5" ry="4.4" fill="#4DD9C0" transform="rotate(-45 16.5 16.5)"/><ellipse cx="16.5" cy="7.5" rx="2.5" ry="4.4" fill="#C77DFF" transform="rotate(45 16.5 7.5)"/><ellipse cx="7.5" cy="16.5" rx="2.5" ry="4.4" fill="#5B9BFF" transform="rotate(45 7.5 16.5)"/></g></svg>'],
+  set:  ['linear-gradient(180deg,#B9B9BE,#76767C)', '<svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6zm0 5.9a2.1 2.1 0 1 1 0-4.2 2.1 2.1 0 0 1 0 4.2z"/><path d="m20.3 13.5.1-1.5-.1-1.5 1.5-1.2-1.5-2.6-1.8.6a7.7 7.7 0 0 0-2.6-1.5L15.5 4h-3l-.4 1.8c-.9.3-1.8.8-2.6 1.5l-1.8-.6-1.5 2.6L7.7 10.5a9 9 0 0 0 0 3l-1.5 1.2 1.5 2.6 1.8-.6c.8.7 1.7 1.2 2.6 1.5l.4 1.8h3l.4-1.8c.9-.3 1.8-.8 2.6-1.5l1.8.6 1.5-2.6-1.5-1.2z" opacity=".55"/></svg>'],
+  weather:['linear-gradient(180deg,#3FA8F5,#1668D8)', '<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.6" fill="#FFD43B"/><path d="M16.5 19H8a3.6 3.6 0 0 1-.3-7.2A4.8 4.8 0 0 1 17 13.1a3 3 0 0 1-.5 5.9z" fill="#fff"/></svg>'],
+  clock:['#0B0B0D', '<svg width="40" height="40" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#0B0B0D" stroke="#fff" stroke-width=".7"/><circle cx="12" cy="12" r="8.6" fill="none" stroke="#fff" stroke-width=".5" opacity=".35"/><path d="M12 6.4v5.6l3.6 2.2" stroke="#fff" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M12 12 8.6 8.6" stroke="#FF9500" stroke-width="1.1" stroke-linecap="round"/><circle cx="12" cy="12" r="1" fill="#fff"/></svg>'],
+  cal:  ['#fff', '<svg width="44" height="44" viewBox="0 0 24 24"><text x="12" y="8.6" font-family="Inter,sans-serif" font-size="4.4" font-weight="600" fill="#FF3B30" text-anchor="middle">الخميس</text><text x="12" y="19.4" font-family="Inter,sans-serif" font-size="11" font-weight="300" fill="#1C1C1E" text-anchor="middle">18</text></svg>'],
+  maps: ['linear-gradient(180deg,#8BE36B,#4CAF50)', '<svg width="38" height="38" viewBox="0 0 24 24"><path d="M2 7h20v10H2z" fill="#A5E887"/><path d="M2 12h20" stroke="#fff" stroke-width="1.4"/><path d="M9 7v10" stroke="#fff" stroke-width="1.1" opacity=".8"/><path d="M14 17V7" stroke="#6EC6F5" stroke-width="2.2"/><circle cx="16.5" cy="10" r="2.6" fill="#FF3B30"/><circle cx="16.5" cy="10" r="1" fill="#fff"/></svg>'],
+  notes:['linear-gradient(180deg,#FFE27A,#F5C518)', '<svg width="34" height="34" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2" fill="#fff"/><rect x="4" y="3" width="16" height="3.4" fill="#F0B400"/><g stroke="#C9C9CE" stroke-width="1.1" stroke-linecap="round"><path d="M7 10.5h10M7 13.5h10M7 16.5h6"/></g></svg>'],
+  rem:  ['#fff', '<svg width="34" height="34" viewBox="0 0 24 24"><circle cx="6.5" cy="6.5" r="2.4" fill="#FF3B30"/><circle cx="6.5" cy="13" r="2.4" fill="#0A84FF"/><circle cx="6.5" cy="19.5" r="2.4" fill="#FF9500"/><g stroke="#C9C9CE" stroke-width="1.5" stroke-linecap="round"><path d="M11 6.5h7M11 13h7M11 19.5h4"/></g></svg>'],
+  store:['linear-gradient(180deg,#2AA3FF,#0A6CF0)', '<svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M12 4.2 7.2 12.6h2.3l1.3-2.3 2.6 4.6h2.3L12 4.2zM6.6 16.2h10.8v1.9H6.6z"/></svg>'],
+  music:['linear-gradient(180deg,#FC5C7D,#E8344E)', '<svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M18 4.2 9 6.1v9.2a3 3 0 1 0 1.8 2.7V9.1l5.4-1.2v5.5a3 3 0 1 0 1.8 2.7V4.2z"/></svg>'],
+  calc: ['linear-gradient(180deg,#4A4A4F,#1C1C1E)', '<svg width="32" height="32" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="6" rx="1.4" fill="#2C2C2E"/><g fill="#5A5A5F"><rect x="4" y="10.5" width="4.6" height="4" rx="1.2"/><rect x="9.7" y="10.5" width="4.6" height="4" rx="1.2"/><rect x="4" y="15.6" width="4.6" height="4" rx="1.2"/><rect x="9.7" y="15.6" width="4.6" height="4" rx="1.2"/></g><rect x="15.4" y="10.5" width="4.6" height="9.1" rx="1.2" fill="#FF9500"/></svg>'],
+  wallet:['#0B0B0D', '<svg width="34" height="34" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="4" rx="1.6" fill="#FF3B30"/><rect x="3.5" y="10" width="17" height="4" rx="1.6" fill="#FF9500"/><rect x="3.5" y="13" width="17" height="6.4" rx="2" fill="#fff"/></svg>'],
+  files:['linear-gradient(180deg,#5BC8FA,#1287E8)', '<svg width="34" height="34" viewBox="0 0 24 24" fill="#fff"><path d="M3.5 6.6c0-.9.7-1.6 1.6-1.6h3.6l1.8 1.9h8.4c.9 0 1.6.7 1.6 1.6v8.9c0 .9-.7 1.6-1.6 1.6H5.1a1.6 1.6 0 0 1-1.6-1.6V6.6z"/></svg>'],
+  compass:['linear-gradient(180deg,#4A4A4F,#1C1C1E)', '<svg width="36" height="36" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2" fill="#2C2C2E" stroke="#8E8E93" stroke-width=".7"/><path d="M15.6 8.4 10.6 10.6 8.4 15.6 13.4 13.4z" fill="#FF3B30"/><path d="M10.6 10.6 8.4 15.6 13.4 13.4z" fill="#fff"/></svg>'],
+  mail: ['linear-gradient(180deg,#3FA9FF,#0A63E8)', '<svg width="34" height="34" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.4" fill="#fff"/><path d="M3.6 7 12 13.2 20.4 7" stroke="#8FC4FF" stroke-width="1.5" fill="none"/></svg>'],
+  health:['#fff', '<svg width="32" height="32" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-7.5-9.4a4.2 4.2 0 0 1 7.5-2.6 4.2 4.2 0 0 1 7.5 2.6c0 4.8-7.5 9.4-7.5 9.4z" fill="#FF2D55"/></svg>'],
+  trans:['linear-gradient(180deg,#5BC8FA,#1287E8)', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><text x="7" y="12" font-family="Inter,sans-serif" font-size="9" font-weight="600" text-anchor="middle">A</text><text x="16" y="20" font-family="IBM Plex Sans Arabic,sans-serif" font-size="9" font-weight="600" text-anchor="middle">ع</text></svg>'],
+  books:['linear-gradient(180deg,#FF9F43,#F2660A)', '<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M4 5.5A2 2 0 0 1 6 3.5h5v17H6a2 2 0 0 1-2-2v-13zM13 3.5h5a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2h-5v-17z" opacity=".95"/><path d="M11.4 3.5h1.2v17h-1.2z" fill="#F2660A"/></svg>'],
+  tv:   ['#0B0B0D', '<svg width="34" height="34" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.2" fill="#1C1C1E" stroke="#5A5A5F" stroke-width=".8"/><text x="12" y="14.4" font-family="Inter,sans-serif" font-size="6.4" font-weight="700" fill="#fff" text-anchor="middle">tv</text></svg>'],
+  cuts: ['linear-gradient(180deg,#F65BD0,#6C5BFA)', '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h4.5a4 4 0 0 1 0 8H10M17 17h-4.5a4 4 0 0 1 0-8H14"/></svg>'],
+  sadih:['#000', '<svg width="58" height="58" viewBox="0 0 100 100"><text x="50" y="50" text-anchor="middle" dominant-baseline="central" fill="#fff" font-family="Thmanyah Serif Display, Thmanyah Serif Text, IBM Plex Sans Arabic, Tahoma, serif" font-size="30" font-weight="500">صادِح</text></svg>'],
+};
+const PAGE1 = [["صادِح","sadih"],["الرسائل","msg"],["الصور","photos"],["الكاميرا","cam"],
+               ["الطقس","weather"],["الساعة","clock"],["التقويم","cal"],["الخرائط","maps"],
+               ["الملاحظات","notes"],["التذكيرات","rem"],["الإعدادات","set"],["الملفات","files"],
+               ["البريد","mail"],["الصحة","health"],["الترجمة","trans"],["الكتب","books"],
+               ["المتجر","store"],["الحاسبة","calc"],["المحفظة","wallet"],["البوصلة","compass"]];
+const PAGE2 = [["التلفاز","tv"],["الاختصارات","cuts"],["الموسيقى","music"],["سفاري","safari"]];
+const DOCK  = [["الهاتف","phone"],["سفاري","safari"],["الرسائل","msg"],["الموسيقى","music"]];
+
+function icon(name, key) {
+  const [bg, svg] = G[key];
+  const a = el("div", "app"); a.dataset.key = key; a.dataset.name = name;
+  const ic = el("div", "ic", svg); ic.style.background = bg;
+  a.append(ic, el("div", "nm", name));
+  a.addEventListener("click", () => key === "sadih" ? openSadih() : openMock(name, key));
+  return a;
+}
+PAGE1.forEach(([n, k]) => $("g1").append(icon(n, k)));
+PAGE2.forEach(([n, k]) => $("g2").append(icon(n, k)));
+DOCK .forEach(([n, k]) => $("gd").append(icon(n, k)));
+
+/* ───────── clock ───────── */
+const AR_DAYS = ["الأحد","الإثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+const AR_MON = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+function tick() {
+  const d = new Date();
+  const t = `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")}`;
+  $("sb-time").textContent = t; $("lk-time").textContent = t;
+  $("lk-date").textContent = `${AR_DAYS[d.getDay()]}، ${d.getDate()} ${AR_MON[d.getMonth()]}`;
+}
+tick(); setInterval(tick, 10000);
+
+/* ───────── fit to viewport ───────── */
+function fit() {
+  if (MODE !== "frame") { measure(); return; }
+  const s = Math.min(1, (innerHeight - 78) / 852, (innerWidth - 40) / 393);
+  $("device").style.transform = `scale(${s})`;
+  const st = $("device").parentElement;
+  st.style.height = (852 * s + 46) + "px"; st.style.width = (393 * s) + "px";
+  measure();
+}
+addEventListener("resize", fit); fit();
+
+/* ───────── navigation ───────── */
+let view = BARE ? "sadih" : "home", page = 0, unlocked = BARE;
+function setPage(p) {
+  page = Math.max(0, Math.min(1, p));
+  $("pages").style.transform = `translateX(${page * 100}%)`;   // rtl: page 2 sits to the left
+  [...$("dots").children].forEach((d, i) => d.classList.toggle("on", i === page));
+}
+// tapping the dots is faster than swiping, and it is discoverable
+$("dots").addEventListener("click", e => {
+  const i = [...$("dots").children].indexOf(e.target);
+  if (i >= 0) setPage(i);
+});
+function goHome() {
+  $("appview").classList.remove("on"); $("sadih").classList.remove("on"); view = "home";
+  if (unlocked) bubbleShow();
+}
+function openMock(name, key) {
+  $("av-name").textContent = name;
+  $("av-ic").style.background = G[key][0];
+  $("av-ic").innerHTML = G[key][1].replace(/width="\d+" height="\d+"/, 'width="21" height="21"');
+  $("av-body").innerHTML = "";
+  for (let i = 0; i < 5; i++)
+    $("av-body").append(el("div", "sk", '<div class="av"></div><div class="ln"><b style="width:' + (46 + i * 9) + '%"></b><i style="width:' + (72 - i * 7) + '%"></i></div>'));
+  $("av-body").append(el("div", "note", "تطبيق تجريبي · صادِح يشتغل من الزر العائم في أي شاشة"));
+  $("appview").classList.add("on"); view = "app";
+}
+// inside صادِح itself the button is redundant — and it would sit on top of the transcript
+function openSadih() { $("sadih").classList.add("on"); view = "sadih"; pipHide(); bubbleHide(); avatarTo("app"); }
+
+/* lock: swipe up */
+(() => {
+  let y0 = null;
+  const L = $("lock");
+  L.addEventListener("pointerdown", e => { y0 = e.clientY; L.style.transition = "none"; L.setPointerCapture(e.pointerId); });
+  L.addEventListener("pointermove", e => {
+    if (y0 === null) return;
+    L.style.transform = `translateY(${Math.min(0, e.clientY - y0)}px)`;
+  });
+  L.addEventListener("pointerup", e => {
+    if (y0 === null) return;
+    const dy = e.clientY - y0; y0 = null; L.style.transition = "";
+    if (dy < -45) { L.style.transform = "translateY(-100%)"; L.style.opacity = "0"; unlocked = true; setTimeout(() => { L.hidden = true; bubbleShow(); }, 380); }
+    else L.style.transform = "";
+  });
+  L.addEventListener("pointercancel", () => { y0 = null; L.style.transition = ""; L.style.transform = ""; });
+  L.addEventListener("click", () => { if (!unlocked) { L.style.transform = "translateY(-100%)"; L.style.opacity = "0"; unlocked = true; setTimeout(() => { L.hidden = true; bubbleShow(); }, 380); } });
+})();
+
+/* home: the pages follow the finger. A swipe that only moves on release feels broken on a phone. */
+(() => {
+  const pages = $("pages"), PAGES = 2;
+  let x0 = null, y0 = 0, t0 = 0, dx = 0, w = 0, axis = null;
+
+  const put = px => { pages.style.transform = `translateX(${px}px)`; };
+
+  $("home").addEventListener("pointerdown", e => {
+    if (view !== "home") return;
+    x0 = e.clientX; y0 = e.clientY; t0 = performance.now(); dx = 0; axis = null;
+    w = $("screen").clientWidth || 390;
+    pages.classList.add("dragging");
+  });
+  $("home").addEventListener("pointermove", e => {
+    if (x0 === null) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!axis && Math.abs(mx) + Math.abs(my) > 8) axis = Math.abs(mx) > Math.abs(my) ? "x" : "y";
+    if (axis !== "x") return;
+    dx = mx;
+    let t = page * w - dx;                       // rtl: dragging left reveals the next page
+    const max = (PAGES - 1) * w;
+    if (t < 0) t *= .32;                         // rubber-band past the ends
+    else if (t > max) t = max + (t - max) * .32;
+    put(t);
+  });
+  const end = e => {
+    if (x0 === null) return;
+    const dt = Math.max(1, performance.now() - t0);
+    const fast = Math.abs(dx) / dt > 0.45;       // a flick counts even if it is short
+    pages.classList.remove("dragging");
+    pages.style.transform = "";
+    if (axis === "x" && (Math.abs(dx) > w * 0.22 || fast)) setPage(page + (dx > 0 ? -1 : 1));
+    else setPage(page);
+    x0 = null;
+  };
+  $("home").addEventListener("pointerup", end);
+  $("home").addEventListener("pointercancel", end);
+})();
+
+/* Going home. On a real phone the very bottom edge belongs to Android's gesture bar, so the
+   swipe often never reaches us — the home bar is tappable too, and that is the reliable path. */
+(() => {
+  let y0 = null;
+  const go = () => { if (view !== "home") goHome(); };
+  $("grab").addEventListener("pointerdown", e => { y0 = e.clientY; $("grab").setPointerCapture(e.pointerId); });
+  $("grab").addEventListener("pointerup", e => {
+    if (y0 !== null && e.clientY - y0 < -22) go();
+    y0 = null;
+  });
+  $("grab").addEventListener("pointercancel", () => { y0 = null; });
+  document.querySelector(".indicator").addEventListener("click", go);
+})();
+addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  goHome(); pipHide();
+  if (client.state === "live") client.stop();
+  $("lock").hidden = false; $("lock").style.transform = ""; $("lock").style.opacity = "";
+  unlocked = false; bubbleHide(); setPage(0);
+});
+
+/* ───────── floating button ───────── */
+const SC = { w: 371, h: 830 };          // recomputed from the real screen box — see measure()
+function measure() {
+  if (!boundsReady) return;            // the bubble and window do not exist yet
+  const el = $("screen");
+  SC.w = el.clientWidth || SC.w;        // layout px, unaffected by the CSS scale in frame mode
+  SC.h = el.clientHeight || SC.h;
+  bx = Math.max(8, Math.min(SC.w - 64, bx));
+  by = Math.max(62, Math.min(SC.h - 64, by));
+  pip.w = Math.min(pip.w, SC.w - 20);
+  pip.h = Math.min(pip.h, SC.h - 90);
+  pip.x = Math.max(6, Math.min(SC.w - pip.w - 6, pip.x));
+  pip.y = Math.max(58, Math.min(SC.h - pip.h - 22, pip.y));
+  place();
+  pipPlace();
+}
+const B = $("bubble");
+let bx = SC.w - 56 - 12, by = SC.h - 56 - 150;
+addEventListener("resize", measure);
+function place() { B.style.left = bx + "px"; B.style.top = by + "px"; }
+function bubbleShow() { place(); B.classList.remove("hide"); }
+function bubbleHide() { B.classList.add("hide"); }
+place();
+(() => {
+  let sx, sy, ox, oy, moved = false, down = false;
+  B.addEventListener("pointerdown", e => {
+    down = true; moved = false; sx = e.clientX; sy = e.clientY; ox = bx; oy = by;
+    B.setPointerCapture(e.pointerId); B.classList.add("drag");
+  });
+  B.addEventListener("pointermove", e => {
+    if (!down) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) + Math.abs(dy) > 5) moved = true;
+    bx = Math.max(8, Math.min(SC.w - 64, ox + dx));
+    by = Math.max(62, Math.min(SC.h - 64, oy + dy));
+    place();
+  });
+  B.addEventListener("pointerup", () => {
+    if (!down) return;
+    down = false; B.classList.remove("drag");
+    if (moved) { bx = bx + 28 < SC.w / 2 ? 8 : SC.w - 64; place(); }   // snap to the nearer edge
+    else pipToggle();
+  });
+})();
+
+/* ───────── floating window ───────── */
+const P = $("pip");
+let pip = { x: 30, y: 300, w: 268, h: 210, open: false };
+function pipPlace() {
+  P.style.left = pip.x + "px"; P.style.top = pip.y + "px";
+  P.style.width = pip.w + "px"; P.style.height = pip.h + "px";
+}
+function pipShow() {
+  pip.x = Math.max(10, Math.min(SC.w - pip.w - 10, pip.x));
+  pip.y = Math.max(62, Math.min(SC.h - pip.h - 34, pip.y));
+  pipPlace(); P.classList.remove("hide"); pip.open = true; avatarTo("pip"); render();
+}
+function pipHide() { P.classList.add("hide"); pip.open = false; }
+function pipToggle() { pip.open ? pipHide() : pipShow(); }
+pipPlace();
+
+(() => {   // drag by the bar
+  let sx, sy, ox, oy, down = false;
+  const bar = $("pip-bar");
+  bar.addEventListener("pointerdown", e => {
+    if (e.target.closest("button")) return;
+    down = true; sx = e.clientX; sy = e.clientY; ox = pip.x; oy = pip.y;
+    bar.setPointerCapture(e.pointerId); bar.classList.add("drag"); P.classList.add("moving");
+  });
+  bar.addEventListener("pointermove", e => {
+    if (!down) return;
+    pip.x = Math.max(6, Math.min(SC.w - pip.w - 6, ox + e.clientX - sx));
+    pip.y = Math.max(58, Math.min(SC.h - pip.h - 22, oy + e.clientY - sy));
+    pipPlace();
+  });
+  bar.addEventListener("pointerup", () => { down = false; bar.classList.remove("drag"); P.classList.remove("moving"); });
+})();
+
+(() => {   // resize from the bottom-left corner (rtl-natural)
+  let sx, sy, ow, oh, ox, down = false;
+  const h = $("pip-rs");
+  h.addEventListener("pointerdown", e => {
+    down = true; sx = e.clientX; sy = e.clientY; ow = pip.w; oh = pip.h; ox = pip.x;
+    h.setPointerCapture(e.pointerId); P.classList.add("moving"); e.stopPropagation();
+  });
+  h.addEventListener("pointermove", e => {
+    if (!down) return;
+    const dx = e.clientX - sx;
+    pip.w = Math.max(190, Math.min(SC.w - 20, ow - dx));
+    pip.x = Math.max(6, ox + (ow - pip.w));
+    pip.h = Math.max(150, Math.min(SC.h - pip.y - 24, oh + e.clientY - sy));
+    pipPlace();
+  });
+  h.addEventListener("pointerup", () => { down = false; P.classList.remove("moving"); });
+})();
+
+$("pip-close").addEventListener("click", pipHide);
+$("pip-max").addEventListener("click", () => { openSadih(); });
+
+/* ───────── صادِح ───────── */
+const LBL = { idle: "جاهز", connecting: "يتصل…", live: "يستمع", finishing: "ينهي…", error: "خطأ" };
+const SUB = { idle: "اضغط وتكلّم", connecting: "لحظة…", live: "اضغط للإيقاف", finishing: "يكمّل آخر الكلمات…", error: "اضغط للمحاولة مرة ثانية" };
+
+const client = new SadihClient({
+  onState: s => {
+    $("sd-pill").dataset.s = s; $("sd-pill").textContent = LBL[s]; $("sd-sub").textContent = SUB[s];
+    $("sd-mic").classList.toggle("on", s === "live");
+    $("pip-mic").classList.toggle("on", s === "live");
+    $("pip-dot").classList.toggle("on", s === "live");
+    B.classList.toggle("listening", s === "live");
+    $("sd-mic").disabled = $("pip-mic").disabled = (s === "connecting" || s === "finishing");
+    if (s !== "error") $("sd-err").hidden = true;
+    render();
+  },
+  onInterim: render, onUnit: render, onStats: render,
+  onErrorCode: (code, msg) => { if (code === "bad_code") showGate("الرمز غير صحيح، جرّب مرة ثانية."); },
+  onError: msg => { $("sd-err").textContent = msg; $("sd-err").hidden = false; },
+});
+
+function body() {
+  const n = client.units.length;
+  const parts = client.units.map((u, i) => {
+    const age = n - 1 - i;
+    // newest line brightest, the one before it a step down, everything older stays readable
+    return `<span class="${age === 0 ? "u0" : age === 1 ? "u1" : "uh"}">${esc(u.text)}</span>`;
+  });
+  if (client.buffer) parts.push(`<span class="bf">${esc(client.buffer)}</span>`);
+  if (client.pending) parts.push(`<span class="pd">${esc(client.pending)}</span>`);
+  return parts;
+}
+const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+/* Follow the newest line — but stop the moment someone scrolls up to read back, or the app
+   yanks the page out from under their finger. Measuring the gap at render time is not enough:
+   the first time the text overflows, scrollTop is still 0 and that looks identical to
+   "scrolled to the top". So each box remembers whether it is meant to be following. */
+const _follow = new WeakMap();
+function stickBottom(n) {
+  if (!n) return;
+  if (!_follow.has(n)) {
+    _follow.set(n, true);
+    n.addEventListener("scroll", () => {
+      _follow.set(n, n.scrollHeight - n.scrollTop - n.clientHeight < 90);
+    }, { passive: true });
+  }
+  if (_follow.get(n)) n.scrollTop = n.scrollHeight;
+}
+function render() {
+  const p = body();
+  const live = client.state === "live" || client.state === "finishing";
+  const empty = live ? `<p class="sd-hint">تكلّم…</p>` : `<p class="sd-hint">اضغط على المايك<br>وخلّ اللي قدامك يتكلّم</p>`;
+  const html = p.length ? `<p>${p.join(" ")}</p>` : empty;
+  $("sd-text").innerHTML = html;
+  stickBottom($("sd-body"));
+  if (pip.open) { $("pip-body").innerHTML = p.length ? `<p>${p.slice(-4).join(" ")}</p>` : empty; stickBottom($("pip-body")); }
+  if (client.mock) $("mockbadge").hidden = false;
+}
+if (BARE) { $("sadih").classList.add("on"); $("lock").hidden = true; }
+boundsReady = true;
+measure();   // now that the bubble and window exist, size their bounds to the real screen
+if (Q.get("listen") === "1") addEventListener("pointerdown", () => client.start(), { once: true });
+
+$("sd-mic").addEventListener("click", () => client.toggle());
+$("pip-mic").addEventListener("click", () => client.toggle());
+render();
+
+/* ───────── access code ───────── */
+function showGate(msg) {
+  $("gate-bad").textContent = msg || "";
+  $("gate").classList.add("on");
+  $("gate-in").value = "";
+  setTimeout(() => $("gate-in").focus(), 60);
+}
+function submitGate() {
+  const v = $("gate-in").value.trim();
+  if (!v) return;
+  window.sadihCode.set(v);
+  $("gate").classList.remove("on");
+  $("sd-err").hidden = true;
+  client.start();
+  setupAvatar();
+}
+$("gate-go").addEventListener("click", submitGate);
+$("gate-in").addEventListener("keydown", e => { if (e.key === "Enter") submitGate(); });
+
+// the server tells us whether a code is needed; it never sends the code itself
+var CF = {};
+fetch("/config").then(r => r.json()).then(cf => {
+  CF = cf;
+  if (cf.needs_code && !window.sadihCode.get()) showGate();
+  else setupAvatar();
+  if (cf.avatar_mock) { $("mockbadge").textContent = "MOCK MODEL · still pose, no GPU"; $("mockbadge").hidden = false; }
+}).catch(() => {});
+
+/* ───────── avatar (web/avatar.js) ───────── */
+// Shown only when the server has a model (SADIH_MODEL_URL) AND the avatar body file. Without either, the app is
+// exactly the captions-only app it was.
+var avatar = null, avatarLoading = false;   // var: openSadih() may run before this line
+const avNote = t => { $("sd-av-note").textContent = t; };
+async function setupAvatar() {
+  if (!CF.avatar || avatar || avatarLoading) return;
+  avatarLoading = true;
+  $("sd-avatar").hidden = false; $("sadih").classList.add("has-av");
+  avNote("الأفاتار يجهز…");
+  try {
+    const { SadihAvatar } = await import("/static/avatar.js");
+    const av = new SadihAvatar($("sd-avatar"));
+    window.sadihAvatar = av;
+    const code = window.sadihCode.get();
+    await av.load("/avatar.glb" + (code ? "?code=" + encodeURIComponent(code) : ""));
+    avatar = av; avNote("");
+    if (pip.open) avatarTo("pip");
+  } catch (e) {
+    avNote("ما قدرنا نحمّل الأفاتار");
+    $("sd-avatar").dataset.error = String(e.message || e);
+  } finally { avatarLoading = false; }
+}
+function avatarTo(where) {
+  if (!avatar) return;
+  const pipOn = where === "pip";
+  $("pip-av").hidden = !pipOn;
+  if (pipOn && pip.h < 300) { pip.h = 320; pipPlace(); }
+  avatar.attach(pipOn ? $("pip-av") : $("sd-avatar"));
+}
+client.h.onMotion = m => { if (avatar) avatar.enqueue(m); };
+client.h.onMotionError = m => { if (avatar) console.warn("no clip for unit", m.unit_id, m.message); };
+setInterval(() => {   // say so when the avatar is behind the speaker; the captions are always current
+  if (!avatar) return;
+  const s = avatar.stats;
+  avNote(s.queued && s.lag_s >= 2 ? `متأخر ${s.lag_s.toFixed(0)} ث` : "");
+}, 500);
+
+/* Installability: Chrome only offers "install" reliably when a service worker with a fetch
+   handler is registered, and Google Play wants one too. It is network-first, so it can never
+   pin an old build. Plain http (other than localhost) has no service workers — that is fine,
+   it only means no install prompt. */
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {}));
+}
+</script>
+</body>
+</html>

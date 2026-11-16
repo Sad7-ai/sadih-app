@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>صادِح</title>
+<!-- Every page in scope must declare these, not just /app — a scanner (PWABuilder, Lighthouse)
+     or a visitor landing on "/" would otherwise see no app at all. start_url still sends them to /app. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1C1734">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="صادِح">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-180.png">
+<link rel="icon" href="/static/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- non-blocking: a slow font request must never delay the mic button's script -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+  :root {
+    --page: #12101F; --ink: #1E1B34; --ink-soft: #2C2750; --screen: #17142B; --line: #3A3461;
+    --text: #FFFFFF; --muted: #A49FC4; --faint: #6B6689;
+    --coral: #FF6F5E; --violet: #7A5AF8; --cyan: #5EC8D8; --amber: #F5B84C;
+    --sans: "Inter", "Segoe UI", system-ui, sans-serif;
+    --arabic: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }   /* author display rules must never un-hide a hidden element */
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.5 var(--sans);
+         background-image: radial-gradient(900px 600px at 18% 30%, #231E42 0%, transparent 60%); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 32px; display: grid;
+          grid-template-columns: 380px minmax(0, 1fr); gap: 44px; align-items: start; }
+
+  /* ---------- phone ---------- */
+  .phone { width: 380px; height: min(760px, calc(100vh - 48px)); min-height: 540px; border-radius: 46px; background: var(--ink-soft); padding: 11px;
+           box-shadow: 0 30px 80px rgba(0,0,0,.45); position: sticky; top: 24px; }
+  .screen { height: 100%; border-radius: 36px; background: var(--screen); display: flex; flex-direction: column;
+            padding: 22px 20px 20px; overflow: hidden; }
+  .bar { display: flex; align-items: center; justify-content: space-between; }
+  .mark { font: 700 24px/1 var(--arabic); color: var(--coral); }
+  .pill { font: 700 10px/1 var(--sans); letter-spacing: .14em; padding: 8px 12px; border-radius: 99px;
+          background: var(--ink-soft); color: var(--muted); transition: background .25s, color .25s; }
+  .pill[data-s="live"] { background: var(--coral); color: #fff; }
+  .pill[data-s="connecting"], .pill[data-s="finishing"] { background: var(--violet); color: #fff; }
+  .pill[data-s="error"] { background: #5A2430; color: #FFB4AA; }
+
+  .stage { flex: 0 0 auto; display: grid; place-items: center; padding: 10px 0 2px; }
+  .stage svg { height: clamp(110px, 25vh, 250px); opacity: .55; transition: opacity .3s; }
+  .live .stage svg { opacity: 1; }
+  .stage small { color: var(--faint); font-size: 11px; letter-spacing: .04em; margin-top: 2px; }
+
+  .track { flex: 1 1 auto; min-height: 0; margin-top: 12px; background: var(--ink); border-radius: 18px;
+           padding: 14px 16px; min-height: 96px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+  .track p { margin: 0; direction: rtl; text-align: right; font: 500 21px/1.75 var(--arabic); unicode-bidi: plaintext; }
+  .track .u { color: var(--text); }
+  .track .u.old { color: var(--muted); }
+  .track .u.older { color: var(--faint); }
+  .track .buf { color: #E7E4F7; }
+  .track .pend { color: var(--faint); }
+  .track .hint { color: var(--faint); font: 400 14px/1.6 var(--sans); direction: ltr; text-align: center; }
+
+  .controls { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 12px; }
+  .mic { width: 62px; height: 62px; border-radius: 50%; border: 0; cursor: pointer; background: var(--coral); color: #fff;
+         display: grid; place-items: center; transition: transform .15s, background .2s; }
+  .mic:hover { transform: scale(1.04); }
+  .mic:active { transform: scale(.96); }
+  .mic:disabled { background: var(--ink-soft); cursor: default; transform: none; }
+  .mic:focus-visible { outline: 3px solid var(--violet); outline-offset: 4px; }
+  .live .mic { box-shadow: 0 0 0 0 rgba(255,111,94,.55); animation: ring 1.8s infinite; }
+  @keyframes ring { to { box-shadow: 0 0 0 22px rgba(255,111,94,0); } }
+  .mic svg { width: 28px; height: 28px; }
+  .controls span { color: var(--muted); font-size: 12px; }
+
+  /* ---------- inspector ---------- */
+  .insp h1 { font: 700 26px/1.2 var(--sans); margin: 6px 0 4px; }
+  .insp .sub { color: var(--muted); margin: 0 0 22px; }
+  .insp .sub b { color: var(--text); font-weight: 600; }
+  .badge { display: inline-block; font: 700 10px/1 var(--sans); letter-spacing: .12em; padding: 5px 8px; border-radius: 6px;
+           background: var(--amber); color: #2B1E00; margin-left: 8px; vertical-align: middle; }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .tile { background: #1B1830; border: 1px solid var(--ink-soft); border-radius: 14px; padding: 14px 16px; }
+  .tile .k { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  .tile .v { font: 700 24px/1.2 var(--sans); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .tile .v small { font: 500 12px var(--sans); color: var(--muted); margin-left: 3px; }
+
+  .err { display: none; background: #3A1A22; border: 1px solid #6B2B37; color: #FFC2BA; padding: 12px 14px; border-radius: 12px; margin-bottom: 18px; }
+  .err.on { display: block; }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .row { display: grid; grid-template-columns: 38px 84px 30px minmax(0, 1fr) 62px; gap: 12px; align-items: center;
+         background: #1B1830; border: 1px solid var(--ink-soft); border-radius: 12px; padding: 11px 14px; animation: in .25s ease-out; }
+  @keyframes in { from { opacity: 0; transform: translateY(-6px); } }
+  .row .id { color: var(--faint); font-variant-numeric: tabular-nums; }
+  .tag { font: 700 10px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; padding: 6px 0; border-radius: 6px; text-align: center; }
+  .tag.marker { background: rgba(122,90,248,.18); color: #B9A6FF; }
+  .tag.punct { background: rgba(94,200,216,.16); color: var(--cyan); }
+  .tag.forced { background: rgba(245,184,76,.16); color: var(--amber); }
+  .tag.endpoint { background: rgba(255,111,94,.16); color: #FF9A8D; }
+  .flags { color: var(--muted); font: 600 12px var(--sans); letter-spacing: .08em; }
+  .txt { direction: rtl; text-align: right; font: 500 17px/1.6 var(--arabic); unicode-bidi: plaintext; overflow-wrap: anywhere; }
+  .txt .en { font: 600 13px var(--sans); background: var(--ink-soft); color: #D9D3FF; padding: 2px 7px; border-radius: 6px; margin: 0 2px; }
+  .lat { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
+  .mo { grid-column: 4 / -1; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .mo:empty { display: none; } .mo.bad { color: #FF9C8F; }
+  .empty { color: var(--faint); border: 1px dashed var(--ink-soft); border-radius: 12px; padding: 26px; text-align: center; }
+  .legend { color: var(--faint); font-size: 12px; margin-top: 18px; line-height: 1.9; }
+  .legend b { color: var(--muted); font-weight: 600; }
+
+  @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; justify-items: center; } .phone { position: static; } .insp { width: 100%; } .tiles { grid-template-columns: repeat(2, 1fr); } }
+  @media (prefers-reduced-motion: reduce) { .live .mic, .row { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="phone" aria-label="صادِح app">
+    <div class="screen">
+      <div class="bar"><div class="mark">صادِح</div><div class="pill" id="pill" data-s="idle">READY</div></div>
+
+      <div class="stage">
+        <svg viewBox="0 0 400 520" aria-hidden="true">
+          <circle cx="200" cy="92" r="58" fill="#B9B4D6"/><rect x="183" y="144" width="34" height="36" rx="10" fill="#B9B4D6"/>
+          <path d="M92 214 Q92 178 128 176 L272 176 Q308 178 308 214 L298 476 Q298 506 268 506 L132 506 Q102 506 102 476 Z" fill="#8F89B8"/>
+          <polyline points="128,226 66,340 142,296" fill="none" stroke="#B9B4D6" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="272,226 338,300 258,238" fill="none" stroke="#B9B4D6" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+          <g transform="translate(142,296) rotate(-18) scale(1.15)" fill="#FF6F5E"><rect x="-26" y="-50" width="52" height="58" rx="15"/><rect x="-25" y="-88" width="12" height="46" rx="6"/><rect x="-10" y="-94" width="12" height="52" rx="6"/><rect x="5" y="-92" width="12" height="50" rx="6"/><rect x="19" y="-84" width="12" height="42" rx="6"/><rect x="-46" y="-46" width="12" height="36" rx="6" transform="rotate(-38 -40 -28)"/></g>
+          <g transform="translate(258,238) rotate(14) scale(1.15)" fill="#7A5AF8"><rect x="-26" y="-50" width="52" height="58" rx="15"/><rect x="-25" y="-88" width="12" height="46" rx="6"/><rect x="-10" y="-94" width="12" height="52" rx="6"/><rect x="5" y="-92" width="12" height="50" rx="6"/><rect x="19" y="-84" width="12" height="42" rx="6"/><rect x="-46" y="-46" width="12" height="36" rx="6" transform="rotate(-38 -40 -28)"/></g>
+        </svg>
+        <small>signing avatar · arrives with stage 3</small>
+      </div>
+
+      <div class="track" id="track" aria-live="polite"><p class="hint">Tap the mic and speak.<br>What you say appears here as it is understood.</p></div>
+
+      <div class="controls">
+        <button class="mic" id="mic" aria-label="Start listening">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <span id="hint">Tap to start</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="insp">
+    <h1>Stage 1 · speech → clause units <span class="badge" id="mock" hidden>MOCK</span></h1>
+    <p class="sub" id="sub">Live microphone → Munsit → stability tracker → clause segmenter. Each row below is one unit handed to text-to-gloss.</p>
+    <div class="err" id="err" role="alert"></div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Units</div><div class="v" id="t-units">0</div></div>
+      <div class="tile"><div class="k">Latency · median</div><div class="v" id="t-lat">–</div></div>
+      <div class="tile"><div class="k">Revisions</div><div class="v" id="t-rev">–</div></div>
+      <div class="tile"><div class="k">Audio sent</div><div class="v" id="t-audio">0<small>s</small></div></div>
+    </div>
+    <div class="list" id="list"><div class="empty" id="empty">No units yet. They appear here the moment a clause is cut.</div></div>
+    <p class="legend">
+      <b>marker</b> the next word opens a clause (وقال، بس، بعدين) · <b>punct</b> recogniser punctuation · <b>forced</b> 12 words or 3 s with no better cut · <b>endpoint</b> the speaker paused<br>
+      <b>Q</b> question · <b>●</b> end of sentence · <b>revisions</b> = words we sent that the recogniser later changed · latency = how far behind the audio the unit was when it left stage 1
+    </p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+let ws = null, ctx = null, stream = null, node = null, state = "idle", t0 = 0, timer = null;
+let units = [], lats = [], buffer = "", pending = "";
+
+const LABEL = { idle: "READY", connecting: "CONNECTING", live: "LISTENING", finishing: "FINISHING", error: "ERROR" };
+const HINT = { idle: "Tap to start", connecting: "Connecting…", live: "Listening — tap to stop", finishing: "Finishing the last words…", error: "Tap to try again" };
+function setState(s) {
+  state = s;
+  $("pill").dataset.s = s; $("pill").textContent = LABEL[s];
+  $("hint").textContent = HINT[s];
+  $("app").classList.toggle("live", s === "live");
+  $("mic").disabled = s === "connecting" || s === "finishing";
+  $("mic").setAttribute("aria-label", s === "live" ? "Stop listening" : "Start listening");
+}
+function fail(msg) { $("err").textContent = msg; $("err").classList.add("on"); stopAudio(); setState("error"); }
+
+function renderTrack() {
+  const last = units.slice(-4);
+  const spans = last.map((u, i) => `<span class="u ${["older", "old", "", ""][i + 4 - last.length]}">${esc(u.text)}</span>`);
+  if (buffer) spans.push(`<span class="buf">${esc(buffer)}</span>`);
+  if (pending) spans.push(`<span class="pend">${esc(pending)}</span>`);
+  $("track").innerHTML = spans.length ? `<p>${spans.join(" ")}</p>` : `<p class="hint">Listening…</p>`;
+}
+function addRow(u) {
+  $("empty")?.remove();
+  const words = u.tokens.map(t => t.lang === "en" ? `<span class="en" dir="ltr">${esc(t.w)}</span>` : esc(t.w)).join(" ");
+  const row = document.createElement("div");
+  row.className = "row"; row.id = "u" + u.unit_id;
+  row.innerHTML = `<div class="id">#${u.unit_id}</div><div class="tag ${u.boundary}">${u.boundary}</div>
+    <div class="flags">${u.is_question ? "Q" : ""}${u.sentence_final ? "●" : ""}</div><div class="txt">${words}</div><div class="lat" id="l${u.unit_id}">…</div><div class="mo" id="m${u.unit_id}"></div>`;
+  $("list").prepend(row);
+  $("t-units").textContent = units.length;
+}
+function median(a) { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : null; }
+
+function handle(m) {
+  if (m.type === "hello") { $("mock").hidden = !m.mock; $("sub").innerHTML = `Session <b>${m.session}</b> · model <b>${esc(m.model || "?")}</b>` + (m.dropped_hotwords.length ? ` · dropped hotwords: ${esc(m.dropped_hotwords.join(", "))}` : ""); }
+  else if (m.type === "interim") { buffer = m.buffer; pending = m.pending; renderTrack(); }
+  else if (m.type === "unit") { units.push(m); buffer = ""; addRow(m); renderTrack(); }
+  else if (m.type === "latency") { lats.push(m.latency_s); const el = $("l" + m.unit_id); if (el) el.textContent = m.latency_s.toFixed(2) + " s"; $("t-lat").innerHTML = median(lats).toFixed(2) + "<small>s</small>"; }
+  else if (m.type === "stats") { $("t-rev").textContent = m.revisions_after_commit; if (m.latency_median_s != null) $("t-lat").innerHTML = m.latency_median_s.toFixed(2) + "<small>s</small>"; pending = ""; renderTrack(); }
+  else if (m.type === "motion") {   // the model's clip for this unit (CONTRACT-MOTION.md)
+    const el = $("m" + m.unit_id);
+    if (el) el.textContent = `avatar clip (${m.source || "?"}) · ${m.frames} frames = ${(m.frames / m.fps).toFixed(1)} s · generate ${m.generate_s}s + decode ${m.decode_s}s`
+      + ` · round trip ${m.relay_s}s · ${m.model}` + (m.unseen_words.length ? ` · unseen: ${m.unseen_words.join(", ")}` : "");
+  }
+  else if (m.type === "motion_error") { const el = $("m" + m.unit_id); if (el) { el.textContent = "no avatar clip: " + m.message; el.classList.add("bad"); } }
+  else if (m.type === "error") { fail(m.message); }
+  else if (m.type === "done") { ws && ws.close(); }
+}
+
+function stopAudio() {
+  clearInterval(timer);
+  try { node && node.disconnect(); } catch {}
+  stream && stream.getTracks().forEach(t => t.stop());
+  ctx && ctx.state !== "closed" && ctx.close();
+  node = stream = ctx = null;
+}
+
+async function start() {
+  units = []; lats = []; buffer = pending = "";
+  $("list").innerHTML = `<div class="empty" id="empty">No units yet. They appear here the moment a clause is cut.</div>`;
+  $("t-units").textContent = "0"; $("t-lat").textContent = "–"; $("t-rev").textContent = "–"; $("t-audio").innerHTML = "0<small>s</small>";
+  $("err").classList.remove("on");
+  setState("connecting");
+  try {   // mic first, socket second: the recogniser's idle timer starts when we connect
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+  } catch (e) { return fail("Microphone blocked — allow it in the browser and try again. (" + e.message + ")"); }
+  try {
+    ctx = new AudioContext({ sampleRate: 16000 });
+    await ctx.audioWorklet.addModule("/static/worklet.js");
+  } catch (e) { return fail("Audio setup failed: " + e.message); }
+
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio`);
+  ws.binaryType = "arraybuffer";
+  ws.onopen = () => {
+    const src = ctx.createMediaStreamSource(stream);
+    node = new AudioWorkletNode(ctx, "pcm16", { processorOptions: { targetRate: 16000 } });
+    node.port.onmessage = e => { if (ws && ws.readyState === 1) ws.send(e.data); };
+    const mute = ctx.createGain(); mute.gain.value = 0;        // keeps the graph pulling without playing the mic back
+    src.connect(node); node.connect(mute); mute.connect(ctx.destination);
+    t0 = performance.now();
+    timer = setInterval(() => { $("t-audio").innerHTML = Math.round((performance.now() - t0) / 1000) + "<small>s</small>"; }, 500);
+    renderTrack(); setState("live");
+  };
+  ws.onmessage = e => handle(JSON.parse(e.data));
+  ws.onerror = () => { if (state !== "error") fail("Cannot reach the server. Is server.py running?"); };
+  ws.onclose = () => { stopAudio(); if (state !== "error") setState("idle"); ws = null; };
+}
+function stop() {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "stop" }));
+  stopAudio(); setState("finishing");
+}
+$("mic").addEventListener("click", () => (state === "live" ? stop() : start()));
+
+// the manifest alone is not enough for an install prompt — Chrome wants a service worker too
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {}));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+# secrets — never commit a key. Real keys live in .env only; .env.example stays blank.
+.env
+.env.*
+!.env.example
+
+# session output: transcripts, raw vendor events, reports
+out/
+results/
+
+# generated audio (regenerate with stt-ab/make_selftest_audio.py or gen_audio.py)
+stt-ab/fixtures/selftest/audio/
+stt-ab/fixtures/tts/audio/
+stt-ab/fixtures/human/*.wav
+stt-ab/fixtures/human/*.m4a
+
+# datasets are research-licensed (Isharah, KArSL, JUMLA). They never go in git.
+data/
+datasets/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# local clutter
+render*/
+sign-language-*.pptx
+~$*
+.DS_Store
+Thumbs.db
+
+# app signing — the keystore and its passwords must never reach git.
+# Losing it means never shipping an update; leaking it means someone else can sign as us.
+*.keystore
+*.jks
+signing-key-info.txt
+*.apk
+*.aab
+
+# SMPL-X is licensed (smpl-x.is.tue.mpg.de): the model file and any avatar built from it never go in git.
+# The app gets the body from the model service (serve/ GET /avatar.glb) or from stage1/private/ on a laptop.
+stage1/private/
+*.glb
+SMPLX_*.npz
+smpl_models/

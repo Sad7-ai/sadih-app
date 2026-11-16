@@ -1,0 +1,29 @@
+{
+  "name": "صادِح",
+  "short_name": "صادِح",
+  "description": "يحوّل كلام من حولك إلى نص ولغة إشارة، مباشرة.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/app?shell=1",
+  "scope": "/",
+  "id": "/app",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "portrait",
+  "background_color": "#0C0A18",
+  "theme_color": "#1C1734",
+  "categories": ["utilities", "productivity", "medical"],
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "ابدأ الاستماع",
+      "short_name": "استماع",
+      "url": "/app?shell=1&listen=1",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

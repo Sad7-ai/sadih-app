@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.onrender.sadih.twa",
+        "sha256_cert_fingerprints": ["36:6A:4C:BF:EC:E7:0C:5D:BB:09:16:11:06:6C:D5:4C:8C:BC:0C:4B:33:71:C5:D1:77:21:CF:6E:B2:7E:F3:D1"]
+      }
+    }]

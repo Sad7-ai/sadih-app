@@ -1,0 +1,7 @@
+# What the hosted server needs — nothing else. The mic, wav decoding and the benchmark harness
+# (sounddevice, soundfile, scipy, numpy) are for the CLI and tests on a laptop, and pulling them
+# here would add ~60 MB and a PortAudio system library the host does not have.
+fastapi>=0.110
+uvicorn[standard]>=0.30
+websockets>=12
+python-dotenv>=1.0
